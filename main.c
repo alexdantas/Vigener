@@ -5,14 +5,9 @@
  *       depends on the ASCII char table.
  *       On the ASCII table, the letter 'a' equals the integer 97. 'b' is
  *       98 and so far untill 'z' that is 122.
- *       So when i sum 'a' with 'e', for example, i must subtract 97 from
- *       both, sum the resulting numbers, and then add 97 again for the
- *       ASCII equivalent.
- *
- *
- *
- *
- *
+ *       So when i sum 'a' with 'e', for example, i must subtract 96 from
+ *       both, sum the resulting numbers, and then add 96 again for the
+ *       ASCII equivalent character.
  */
 
 #include <stdio.h>
@@ -20,6 +15,7 @@
 #include <string.h>
 
 #define NUMBER_OF_ALPHABET_LETTERS 26
+#define ASCII_CORRECTION           96
 
 int verbose_mode = 0;
 
@@ -44,12 +40,6 @@ int sum_mod(int mod, int a, int b)
 
 /** Converts a number between 1 and 26 to the ASCII character equivalent
  */
-int convert_ascii(int number)
-{
-	return number + 96;
-}
-
-
 /** Does the whole job, receiving the key and the message as parameters
  */
 int main (int argc, char* argv[])
@@ -120,12 +110,12 @@ int main (int argc, char* argv[])
 		if (verbose_mode)
 			printf("%c + %c = ", message[i], key[i]);
 
-		int message_char = message[i] - 96;
-		int key_char = key[i] - 96;
+		int message_char = message[i] - ASCII_CORRECTION;
+		int key_char = key[i] - ASCII_CORRECTION;
 
 		char tmp = sum_mod(NUMBER_OF_ALPHABET_LETTERS, message_char, key_char);
 
-		tmp = convert_ascii(tmp);
+		tmp += ASCII_CORRECTION;
 
 		printf("%c", tmp);
 		i++;
