@@ -1,30 +1,50 @@
 /* vigener - An implementation of the Vigener Cipher cryptography algorithm.
  *
- * Note: In C, we can freely convert between the integer type (int) and the
- *       character type (char). The textual result from an integer sum
- *       depends on the ASCII char table.
- *       On the ASCII table, the letter 'a' equals the integer 97. 'b' is
- *       98 and so far untill 'z' that is 122.
- *       So when i sum 'a' with 'e', for example, i must subtract 96 from
- *       both, sum the resulting numbers, and then add 96 again for the
- *       ASCII equivalent character.
+ *  In this program, i use the printable characters from the ASCII table
+ *  to cryptograph/decryptograph messages.
+ *
+ *  I simply replace characters in the ASCII table according to a key
+ *  specified by the user. If the same key is used to cryptograph and
+ *  decryptograph, the result is the original message.
+ *
+ *  The input is received via STDIN and if none is specified, it waits.
+ *
+ *	TODO: Non-blocking sockets!
+ *
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include "arguments.h"
 
-#define NUMBER_OF_ALPHABET_LETTERS 26
-#define ASCII_CORRECTION           96
+// They specify a range in the ASCII table where the characters can
+// be replaced without breaking the document structure.
+// (without generating strange characters, like DEL, NULL or EOF)
+#define ASCII_START 32 // The ' ' (space) character
+#define ASCII_DELTA 94 // How many characters until the '~' (tilde)
 
 int verbose_mode = 0;
+int extra_verbose_mode = 0;
+int encrypt_mode = 1;
+int decrypt_mode = 0;
 
+int get_key(int argc, char* argv[], char** key)
+{
+	int i = 1;
+	while (i < argc)
+	{
+		if (argv[i][0] != '-')
+		{
+			*key = argv[i];
+			return 0;
+		}
+		i++;
+	}
+	return -1;
+}
 
-/** Sums #a + #b respecting #mod
- *
- *  For example, if #mod is 26, #a is 25 and #b is 5, it will
- *  return 4.
- */
 int sum_mod(int mod, int a, int b)
 {
 	int sum = a + b;
@@ -38,92 +58,87 @@ int sum_mod(int mod, int a, int b)
 	return sum;
 }
 
-/** Converts a number between 1 and 26 to the ASCII character equivalent
- */
-/** Does the whole job, receiving the key and the message as parameters
- */
-int main (int argc, char* argv[])
+
+int sub_mod(int mod, int a, int b)
 {
-	if (argc < 3)
-	{
-		printf("Usage: vigener 'key' 'message'\n");
-		printf("Note that you should escape with \" multiple-word key/message\n");
-		exit(1);
-	}
+	int sub = a - b;
 
-	if (argc == 4)
-		if (strcmp(argv[3], "-v") == 0)
-			verbose_mode = 1;
+	if (sub > mod)
+		sub -= mod;
 
-	char* key          = NULL; /* Will contain repetitions of the key */
-	char* message      = NULL; /* The whole message */
-	int   key_size     = strlen(argv[1]);
-	int   message_size = strlen(argv[2]);
+	else if (sub < 1)
+		sub += mod;
 
-	/* Initializing stuff */
-	message = malloc(message_size + 1); /* +1 because of the NULL char */
-	key     = malloc(message_size + 1);
-	if ((message == NULL) || (key == NULL))
-	{
-		printf("Memory error\n");
-		exit(1);
-	}
-
-	/* Pairing message with key */
-	int i = 0;
-	int j = 0;
-
-	while (i < message_size)
-	{
-		message[i] = argv[2][i];
-		key[i]     = argv[1][j];
-
-		i++;
-		j++;
-
-		if (j == key_size)
-			j = 0;
-	}
-
-	message[i] = '\0';
-	key[i]     = '\0';
-
-	/* The main loop - cryptographing and outputting */
-
-	i = 0;
-
-	while (i < message_size)
-	{
-		/* Special case of non-alphabetic characters (like space) */
-		if ((message[i] < 'a') || (message[i] > 'z'))
-		{
-			printf("%c", message[i]);
-
-			if (verbose_mode)
-				printf("\n");
-
-			i++;
-
-			continue;
-		}
-
-		if (verbose_mode)
-			printf("%c + %c = ", message[i], key[i]);
-
-		int message_char = message[i] - ASCII_CORRECTION;
-		int key_char = key[i] - ASCII_CORRECTION;
-
-		char tmp = sum_mod(NUMBER_OF_ALPHABET_LETTERS, message_char, key_char);
-
-		tmp += ASCII_CORRECTION;
-
-		printf("%c", tmp);
-		i++;
-
-		if (verbose_mode)
-			printf("\n");
-	}
-
-	return 0;
+	return sub;
 }
 
+int main (int argc, char* argv[])
+{
+	char*  key      = NULL;
+	char*  msg      = NULL;
+	size_t key_size = 0;
+	int    count    = 0;
+
+	args_handle(argc, argv);
+	get_key(argc, argv, &key);
+	// check for errors in case there's no key
+
+	key_size = strlen(key);
+
+	msg = malloc(key_size + 1);
+	if (msg == NULL)
+	{
+		// how should i hand memory errors?
+		printf("Memory Error\n");
+		exit(EXIT_FAILURE);
+	}
+
+	//if (stdin_is_ready())
+
+	//else (open_file(argv))
+
+	memset(msg, '\0', key_size + 1);
+	count = read(STDIN_FILENO, msg, key_size);
+	while (count != 0)
+	// i gotta make sure that this loop keeps going
+	// while there's still data to read on STDIN
+	{
+		// check for errors in case i don't read exactly key_size
+		int i = 0;
+		while (i < key_size)
+		{
+			if ((msg[i] < ASCII_START) || (msg[i] > ASCII_START + ASCII_DELTA))
+			{
+				i++;
+				continue;
+			}
+
+			if (verbose_mode)
+				fprintf(stdout, "%c + %c = ", msg[i], key[i]);
+
+			char a = msg[i] - (ASCII_START - 1);
+			char b = key[i] - (ASCII_START - 1);
+			char c = 0;
+			if (encrypt_mode)
+				c = sum_mod(ASCII_DELTA, a, b);
+
+			else if (decrypt_mode)
+				c = sub_mod(ASCII_DELTA, a, b);
+
+			c += (ASCII_START - 1);
+
+			//write(STDOUT_FILENO, &c, 1);
+				fprintf(stdout, "%c", c);
+
+			// check for errors in case i don't send it
+
+			if (verbose_mode)
+				fprintf(stdout, "\n");
+
+			i++;
+		}
+		memset(msg, '\0', key_size + 1);
+		count = read(STDIN_FILENO, msg, key_size);
+	}
+	return 0;
+}

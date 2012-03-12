@@ -1,3 +1,3 @@
 all:
-	gcc main.c -g -Wall -o vigener
+	gcc main.c arguments.c -g -Wall -o vigener
 
